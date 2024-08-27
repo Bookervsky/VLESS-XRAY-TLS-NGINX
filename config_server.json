@@ -1,0 +1,91 @@
+{
+    "log": {
+        "loglevel": "warning"
+    },
+    "routing": {
+        "domainStrategy": "IPIfNonMatch",
+        "rules": [
+            {
+                "type": "field",
+                "ip": [
+                    "geoip:cn"
+                ],
+                "outboundTag": "block"
+            },
+            {
+                "type": "field",
+                "domain": [
+                  "geosite:category-ads-all"
+                ],
+                "outboundTag": "block" 
+              }
+        ]
+    },
+    "inbounds": [
+        {
+            "listen": "0.0.0.0",
+            "port": 443, //监听所有HTTPS流量，首先由XRAY处理
+            "protocol": "vless", //VLESS流量由XRAY处理
+            "settings": {
+                "clients": [
+                    {
+                        "id": "", //你的UUID，请删除注释
+                        "flow": "xtls-rprx-vision"
+                    }
+                ],
+                "decryption": "none",
+                "fallbacks": [
+                    {
+                        "dest": "8001",//其它流量（比如正常的HTTPS访问流量）回落到8001和8002端口由NGINX处理
+                        "xver": 1
+                    },
+                    {
+                        "alpn": "h2",
+                        "dest": "8002",
+                        "xver": 1
+                    }
+                ]
+            },
+            "streamSettings": {
+                "network": "tcp",
+                "security": "tls",
+                "tlsSettings": {
+                    "rejectUnknownSni": true,
+                    "minVersion": "1.2",
+                    "certificates": [
+                        {
+                            "ocspStapling": 3600,
+                            "certificateFile": "your.crt", //你的证书路径，请删除注释
+                            "keyFile":"your.key" //你的证书路径，请删除注释
+                        }
+                    ]
+                }
+            },
+            "sniffing": {
+                "enabled": true,
+                "destOverride": [
+                    "http",
+                    "tls"
+                ]
+            }
+        }
+    ],
+    "outbounds": [
+        {
+            "protocol": "freedom", //outbounds的第一个规则是默认规则，当域名未匹配到任何一个规则时会使用默认规则。此处来自你服务器所在地的流量直连。
+            "tag": "direct"
+        },
+        {
+            "protocol": "blackhole", //服务器端xray禁止来自CN和广告的访问
+            "tag": "block"
+        }
+    ],
+    "policy": {
+        "levels": {
+            "0": {
+                "handshake": 2, 
+                "connIdle": 120
+            }
+        }
+    }
+}
